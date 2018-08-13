@@ -6,7 +6,7 @@ setuptools.setup(
     name = 'dotfiles',
     version = '1.0.0',
     author = 'Scott Mielcarski',
-    url = '',
+    url = 'https://github.com/swm93/dotfiles-manager',
     license = 'MIT',
     packages = ['dotfiles'],
     entry_points = {
