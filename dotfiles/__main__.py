@@ -2,7 +2,7 @@ import argparse
 import os
 import pkg_resources
 import sys
-from .dotfiles import DotFiles
+from .dotfiles import DotFiles, DotConfig
 from .link import LinkStatus
 
 
@@ -45,7 +45,9 @@ def main():
             parser.print_help()
         else:
             dotfiles_dir = os.path.realpath(os.path.expandvars(os.path.expanduser(args.directory)))
-            dotfiles = DotFiles(dotfiles_dir)
+            config_dir = os.path.realpath(os.path.expandvars(os.path.expanduser(DotFiles.get_default_config_dir())))
+            config = DotConfig(config_dir)
+            dotfiles = DotFiles(dotfiles_dir, config)
             args.func(dotfiles, args)
     except Exception as ex:
         print(f'\033[91m{ex}\033[0m')
@@ -55,6 +57,7 @@ def main():
 def __print_version__():
     package = pkg_resources.require("dotfiles")[0]
     print(package)
+
 
 
 if __name__ == '__main__':

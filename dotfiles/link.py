@@ -88,7 +88,7 @@ class Link:
             raise Exception(f"Target path {self.target_path} already exists")
         elif not os.path.exists(self.source_path):
             raise Exception(f"Source path {self.source_path} does not exist")
-        os.link(self.source_path, self.target_path)
+        os.symlink(self.source_path, self.target_path)
 
     
     @staticmethod
