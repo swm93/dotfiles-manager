@@ -3,6 +3,7 @@ import os
 import pkg_resources
 import sys
 from .dotfiles import DotFiles, DotConfig
+from .io_util import *
 from .link import LinkStatus
 
 
@@ -44,8 +45,8 @@ def main():
         elif not 'func' in args:
             parser.print_help()
         else:
-            dotfiles_dir = os.path.realpath(os.path.expandvars(os.path.expanduser(args.directory)))
-            config_dir = os.path.realpath(os.path.expandvars(os.path.expanduser(DotFiles.get_default_config_dir())))
+            dotfiles_dir = expand_path(args.directory)
+            config_dir = expand_path(DotFiles.get_default_config_dir())
             config = DotConfig(config_dir)
             dotfiles = DotFiles(dotfiles_dir, config)
             args.func(dotfiles, args)

@@ -1,0 +1,6 @@
+[file]
+    path = $HOME
+    path_win32 = %APPDATA%
+    path_cygwin = %APPDATA%
+    path_linux = $XDG_CONFIG_HOME
+    path_linux2 = $XDG_CONFIG_HOME

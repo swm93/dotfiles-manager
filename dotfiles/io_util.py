@@ -1,3 +1,7 @@
+import os
+
+
+
 def print_columns(data, padding=2):
     column_widths = []
     for row in data:
@@ -24,3 +28,7 @@ def boolean_input(message):
         response = input().lower()
         response_valid = (response == 'yes' or response == 'y' or response == 'no' or response == 'n')
     return response == 'yes' or response == 'y'
+
+
+def expand_path(path):
+    return os.path.realpath(os.path.expandvars(os.path.expanduser(path)))

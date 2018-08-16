@@ -11,16 +11,6 @@ from .link import Link, LinkStatus
 class DotFiles:
     def __init__(self, dotfiles_path, config):
         links = []
-        target_dirs = {
-            'default': {
-                'darwin': '$HOME',
-                'linux': '$XDG_CONFIG_HOME',
-                'linux2': '$XDG_CONFIG_HOME',
-                'win32': '%APPDATA%',
-                'cygwin': '%APPDATA%'
-            }
-        }
-
         if not os.path.exists(dotfiles_path):
             raise Exception(f"Dotfiles directory '{dotfiles_path}' does not exist")
         for (dirpath, _, filenames) in os.walk(dotfiles_path):
@@ -29,12 +19,9 @@ class DotFiles:
                     continue
                 source_path = os.path.join(dirpath, filename)
                 rel_path = os.path.relpath(source_path, dotfiles_path)
-                target_dir = None
-                config_section = config.get_section('file', rel_path)
-                if config_section is not None:
-                    target_dir = config_section.get_property(f'path_{sys.platform}')
+                target_dir = config.get_property('file', rel_path, f'path_{sys.platform}')
                 if target_dir is None:
-                    target_dir = DotFiles.get_default_config_dir()
+                    target_dir = config.get_property('file', rel_path, 'path')
                 target_path = os.path.join(target_dir, rel_path)
                 links.append(Link(source_path, target_path))
         
@@ -113,7 +100,7 @@ class DotFiles:
 
     def list(self, type=None):
         link_data = []
-        for link in self.links:
+        for link in sorted(self.links, key=lambda l: self.__get_rel_path__(l.source_path)):
             if type is not None and link.status != type:
                 continue
             data = []
@@ -203,34 +190,63 @@ class DotConfigSection:
 
 class DotConfig:
     def __init__(self, config_dir):
-        self.path = os.path.join(config_dir, '.dotconfig')
-        self.ignore_path = os.path.join(config_dir, '.dotignore')
-        self.config = DotConfig.__load_config(self.path)
-        self.ignore = DotConfig.__load_ignore(self.config, self.ignore_path)
+        self.config = []
+        self.ignore = []
+
+        self.__load_config(os.path.join(os.path.dirname(expand_path(__file__)), '.default_dotconfig'))
+        self.__load_config(os.path.join(config_dir, '.dotconfig'))
+        self.__load_ignore()
     
 
     def get_section(self, name, subsection_name = None):
         for section in self.config:
-            if section.name == name and (subsection_name is None or section.subsection_name == subsection_name):
+            if section.name == name and section.subsection_name == subsection_name:
                 return section
     
 
-    @staticmethod
-    def __load_config(path):
-        sections = []
+    def get_property(self, name, property_key):
+        return self.__get_property(name, None, property_key)
+
+
+    def get_property(self, name, subsection_name, property_key):
+        value = None
+        for section in self.config:
+            if section.name == name:
+                found_best_match = section.subsection_name == subsection_name
+                if found_best_match or (value is None and section.subsection_name is None):
+                    desired_value = section.get_property(property_key)
+                    if desired_value is not None:
+                        value = desired_value
+                        if found_best_match:
+                            break
+        return value
+
+
+    def __add_section(self, section):
+        self.__remove_section(section.name, section.subsection_name)
+        self.config.append(section)
+
+
+    def __remove_section(self, name, subsection_name = None):
+        for (i, section) in enumerate(self.config):
+            if section.name == name and section.subsection_name == subsection_name:
+                del self.config[i]
+                break
+    
+
+    def __load_config(self, path):
         if os.path.exists(path):
-            section_re1 = re.compile(r'\[\s*(.*)\s+\"(.*)\"\s*\]')
-            section_re2 = re.compile(r'\[\s*(.*)\s*\]')
+            section_re = re.compile(r'\[\s*([^\"]*)(?:\s+\"(.*)\")?\s*\]')
             with open(path, 'r') as fp:
                 current_section = None
                 for line in fp:
+                    # remove comments
+                    line = line.split(';', 1)[0]
                     line = line.strip()
                     if line == '':
                         continue
                     elif line.startswith('['):
-                        section_match = section_re1.match(line)
-                        if not section_match:
-                            section_match = section_re2.match(line)
+                        section_match = section_re.match(line)
                         if not section_match:
                             raise Exception(f".dotconfig section is invalid: '{line}'")
                         groups = section_match.groups()
@@ -239,7 +255,7 @@ class DotConfig:
                         if len(groups) > 1:
                             subsection_name = groups[1]
                         if current_section is not None:
-                            sections.append(current_section)
+                            self.__add_section(current_section)
                         current_section = DotConfigSection(section_name, subsection_name)
                     else:
                         kvp = line.split('=', 1)
@@ -249,24 +265,19 @@ class DotConfig:
                             raise Exception(f".dotconfig parameter must be part of section: '{line}")
                         current_section.add_property(kvp[0], kvp[1])
                 if current_section is not None:
-                    sections.append(current_section)
-        return sections
+                    self.__add_section(current_section)
                     
                     
-    @staticmethod
-    def __load_ignore(config, default_ignore_path):
-        ignored_files = []
-        ignore_path = default_ignore_path
-        for section in config:
-            if section.name != 'ignore':
-                continue
-            path = section.get_property('path')
-            if path is not None:
-                ignore_path = path
-            break
-        ignore_path = os.path.realpath(os.path.expandvars(os.path.expanduser(ignore_path)))
+    def __load_ignore(self):
+        ignore_path = self.get_property('file', '.dotignore', f'path_{sys.platform}')
+        if ignore_path is None:
+            ignore_path = self.get_property('file', '.dotignore', 'path')
+        if ignore_path is None:
+            return
+        ignore_path = expand_path(ignore_path)
+        if os.path.isdir(ignore_path):
+            ignore_path = os.path.join(ignore_path, '.dotignore')
         if os.path.exists(ignore_path):
             with open(ignore_path, 'r') as fp:
                 for line in fp:
-                    ignored_files.append(line.strip())
-        return ignored_files
+                    self.ignore.append(line.strip())
